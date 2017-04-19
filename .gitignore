@@ -2,3 +2,4 @@ train
 test_stg1.zip
 train.zip
 test_stg1
+*.swp

@@ -2,6 +2,8 @@ from tqdm import *
 import random
 import pandas as pd
 import numpy as np
+import scipy.ndimage
+import scipy.misc
 import os
 import tensorflow as tf
 
@@ -32,9 +34,9 @@ def load_images(shape, one_hot_encoding=True):  # Shape should be (batch, height
     labels_list = []
     for i in range(shape[0]):  # Loop over the size of the batch_size
         type_index = int(random.random() * len(image_names))
-        fish_type = image_names.keys()[type_index]
+        fish_type = list(image_names.keys())[type_index]
         image_index = int(random.random() * len(image_names[fish_type]))
-        raw_image = scipy.ndimage.imread("train/" + fish_type + image_names[fish_type][image_index])
+        raw_image = scipy.ndimage.imread("train/" + fish_type + "/" + image_names[fish_type][image_index])
         resized_image = scipy.misc.imresize(raw_image, (shape[1], shape[2]))
 
         if one_hot_encoding:
@@ -47,7 +49,7 @@ def load_images(shape, one_hot_encoding=True):  # Shape should be (batch, height
         images_list.append(resized_image)
 
     
-    return np.asarray(image_list), np.asarray(labels_list)
+    return np.asarray(images_list), np.asarray(labels_list)
 
 
 # Compute Graph functions
@@ -139,3 +141,8 @@ fc2 = dense_layer(fc1, 500, 8) # check the number of labels
 result = tf.nn.softmax(fc2)
 
 # Define loss funciton
+
+
+x, y = load_images((16, 360, 640, 3))
+print(x.shape)
+print(y)
