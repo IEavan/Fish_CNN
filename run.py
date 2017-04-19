@@ -8,7 +8,8 @@ import os
 import tensorflow as tf
 
 # Constants
-BATCH_SIZE = 16
+BATCH_SIZE = 4
+epsilon = 1e-6
 image_names = {
         "OTHER": [],
         "LAG": [],
@@ -53,32 +54,24 @@ def load_images(shape, one_hot_encoding=True):  # Shape should be (batch, height
 
 
 # Compute Graph functions
-def create_weights(shape, dtype=None, name=None):
+def create_weights(shape, dtype=tf.float32, name="weight"):
 
-    if dtype is not None: start_value = tf.truncated_normal(shape=shape, dtype=dtype)
-    else: start_value = tf.truncated_normal(shape=shape)
-
-    if name is not None: weights = tf.Variable(start_value, name=name)
-    else: weights = tf.Variable(start_value)
-
+    start_value = abs(np.random.normal(0.1, 0.3, shape))
+    weights = tf.Variable(start_value, name=name, dtype=dtype)
     return weights
 
 
-def conv_block(input_tensor, input_shape, channels_out, is_training, name=None):
+def conv_block(input_tensor, input_shape, channels_out, is_training, name="conv_block"):
 
-    def _convolution(input_tensor, channels_in, channels_out, name=None):
+    def _convolution(_input_tensor, channels_in, channels_out, name="convolution"):
 
-        if name is not None: conv = tf.nn.conv2d(input_tensor,
-                create_weights(shape=(3,3, channels_in, channels_out), name=name+"_conv_weights"),
+        conv = tf.nn.conv2d(_input_tensor,
+                create_weights((3,3, channels_in, channels_out), name=name+"_conv_weights"),
                 strides=[1,1,1,1],
                 padding='SAME',
                 name=name)
-        else: conv = tf.nn.conv2d(input_tensor,
-                create_weights(shape=(3,3, channels_in, channels_out)),
-                strides=[1,1,1,1],
-                padding='SAME')
 
-        bias = create_weights(shape=[channels_out], name=name)
+        bias = create_weights((channels_out), name=name+"_bias_weights")
         return conv + bias
     
     
@@ -87,12 +80,12 @@ def conv_block(input_tensor, input_shape, channels_out, is_training, name=None):
         return tf.contrib.layers.batch_norm(input_tensor, is_training=is_training)
 
 
-    if name is None: name = ""
     conv1 = _convolution(input_tensor, input_shape[-1], channels_out, name=name+"_conv1")
     conv2 = _convolution(conv1, channels_out, channels_out, name=name+"_conv2")
 
     conv2_BN = _batch_norm(conv2, is_training)
-    pool = tf.nn.max_pool(conv2_BN, ksize=[1,2,2,1], strides=[1,2,2,1], padding='VALID')
+    relu = tf.nn.relu(conv2_BN)
+    pool = tf.nn.max_pool(conv1, ksize=[1,2,2,1], strides=[1,2,2,1], padding='VALID')
 
     return pool
 
@@ -107,6 +100,7 @@ def dense_layer(input_tensor, input_shape, output_shape, name=None):
                 ksize=[1, width, height, 1],
                 strides=[1, width, height, 1],
                 padding='VALID')
+        reduced_input = tf.squeeze(reduced_input)
     else:
         reduced_input = input_tensor
 
@@ -115,7 +109,6 @@ def dense_layer(input_tensor, input_shape, output_shape, name=None):
     bias = create_weights(shape=[output_shape])
     
     # Matrix multiplication + bias + relu
-    reduced_input = tf.squeeze(reduced_input)
     logits = tf.transpose(tf.matmul(weights, tf.transpose(reduced_input)) + tf.expand_dims(bias, 1))
     return tf.nn.relu(logits)
 
@@ -124,25 +117,39 @@ def dense_layer(input_tensor, input_shape, output_shape, name=None):
 tf.reset_default_graph()
 
 # Input
-image_batch = tf.placeholder(tf.float32, name="input_batch", shape=(BATCH_SIZE, 640, 360, 3))
+image_batch = tf.placeholder(tf.float32, name="input_batch", shape=(BATCH_SIZE, 180, 320, 3))
+labels = tf.placeholder(tf.float32, name="labels", shape=(BATCH_SIZE, 8))
 is_training = tf.placeholder(tf.bool, name="is_training")
 
-cnvblk1 = conv_block(image_batch, (BATCH_SIZE, 640, 360, 3), 8, is_training=is_training, name="1")
-cnvblk2 = conv_block(cnvblk1, (BATCH_SIZE, 320, 180, 8), 16, is_training=is_training, name="2")
-cnvblk3 = conv_block(cnvblk2, (BATCH_SIZE, 160, 90, 16), 32, is_training=is_training, name="3")
-cnvblk4 = conv_block(cnvblk3, (BATCH_SIZE, 80, 45, 32), 64, is_training=is_training, name="4")
-cnvblk5 = conv_block(cnvblk4, (BATCH_SIZE, 40, 22, 64), 128, is_training=is_training, name="5")
-cnvblk6 = conv_block(cnvblk5, (BATCH_SIZE, 20, 11, 128), 256, is_training=is_training, name="6")
-cnvblk7 = conv_block(cnvblk6, (BATCH_SIZE, 10, 5, 256), 512, is_training=is_training, name="7")
-cnvblk8 = conv_block(cnvblk7, (BATCH_SIZE, 5, 2, 512), 1024, is_training=is_training, name="8")
+cnvblk1 = conv_block(image_batch, (BATCH_SIZE, 180, 320, 3), 8, is_training=is_training, name="2")
+cnvblk2 = conv_block(cnvblk1, (BATCH_SIZE, 90, 160, 8), 16, is_training=is_training, name="3")
+cnvblk3 = conv_block(cnvblk2, (BATCH_SIZE, 45, 80, 16), 32, is_training=is_training, name="4")
+cnvblk4 = conv_block(cnvblk3, (BATCH_SIZE, 22, 40, 32), 64, is_training=is_training, name="5")
+cnvblk5 = conv_block(cnvblk4, (BATCH_SIZE, 11, 20, 64), 128, is_training=is_training, name="6")
+cnvblk6 = conv_block(cnvblk5, (BATCH_SIZE, 5, 10, 128), 256, is_training=is_training, name="7")
+cnvblk7 = conv_block(cnvblk6, (BATCH_SIZE, 2, 5, 256), 512, is_training=is_training, name="8")
 
-fc1 = dense_layer(cnvblk8, 1024, 500)
-fc2 = dense_layer(fc1, 500, 8) # check the number of labels
+fc1 = dense_layer(cnvblk7, 512, 250)
+fc2 = dense_layer(fc1, 250, 8)
 result = tf.nn.softmax(fc2)
 
 # Define loss funciton
+cross_entropy_loss_matrix = labels * tf.log(result) + (1 - labels) * tf.log(1 - result)
+cross_entropy_loss = - tf.reduce_sum(cross_entropy_loss_matrix)
 
+# Define optimizer
+optimizer = tf.train.AdamOptimizer(0.5)
+train_step = optimizer.minimize(cross_entropy_loss)
 
-x, y = load_images((16, 360, 640, 3))
-print(x.shape)
-print(y)
+# Run Graph
+init_vars = tf.global_variables_initializer()
+with tf.Session() as sess:
+    sess.run(init_vars)
+    for i in tqdm(range(30)):
+        x, y = load_images((BATCH_SIZE, 180, 320, 3))
+        _, loss = sess.run([train_step, cross_entropy_loss], feed_dict={image_batch: x,
+                                        labels: y,
+                                        is_training: True})
+        if (i + 1) % 1 is 0: 
+            print("training loss at iteration " + str(i) + " is: " + str(loss))
+            print(sess.run(cnvblk1, feed_dict={image_batch: x, labels: y, is_training: True}))
