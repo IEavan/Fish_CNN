@@ -1,12 +1,56 @@
 from tqdm import *
+import random
 import pandas as pd
 import numpy as np
+import os
 import tensorflow as tf
 
 # Constants
 BATCH_SIZE = 16
+image_names = {
+        "OTHER": [],
+        "LAG": [],
+        "SHARK": [],
+        "NoF": [],
+        "BET": [],
+        "ALB": [],
+        "YFT": [],
+        "DOL": []
+}
+
+for key in image_names.keys():
+    directory_path = "train/" + key
+    image_names[key] = os.listdir(directory_path)
 
 # Helper functions
+
+# Image functions
+def load_images(shape, one_hot_encoding=True):  # Shape should be (batch, height, width, channels)
+    assert len(shape) is 4
+
+    images_list = []
+    labels_list = []
+    for i in range(shape[0]):  # Loop over the size of the batch_size
+        type_index = int(random.random() * len(image_names))
+        fish_type = image_names.keys()[type_index]
+        image_index = int(random.random() * len(image_names[fish_type]))
+        raw_image = scipy.ndimage.imread("train/" + fish_type + image_names[fish_type][image_index])
+        resized_image = scipy.misc.imresize(raw_image, (shape[1], shape[2]))
+
+        if one_hot_encoding:
+            one_hot_vector = np.zeros((len(image_names)))
+            one_hot_vector[type_index] = 1
+            labels_list.append(one_hot_vector)
+        else:
+            labels_list.append(fish_type)
+
+        images_list.append(resized_image)
+
+    
+    return np.asarray(image_list), np.asarray(labels_list)
+
+
+# Compute Graph functions
 def create_weights(shape, dtype=None, name=None):
 
     if dtype is not None: start_value = tf.truncated_normal(shape=shape, dtype=dtype)
