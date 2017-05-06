@@ -13,6 +13,12 @@ import scipy.misc
 import os
 import random
 
+import matplotlib.pyplot as plt
+plt.ion()
+
+# Constants
+iterations = 1  # Number of training loops
+
 # Load pretrained ResNet18
 resnet = torchvision.models.resnet18(pretrained=True)
 
@@ -77,3 +83,17 @@ def load_images(shape, one_hot_encoding=True):  # Shape should be (batch, channe
 
     
     return np.asarray(images_list), np.asarray(labels_list)
+
+# ReTrain ResNet
+for iter in tqdm(range(iterations)):
+
+    # Load images and labels
+    imgs, labels = load_images((64, 224, 224, 3))
+    plt.imshow(imgs[0])
+    plt.pause(1)
+    imgs = np.transpose(imgs, (0,3,1,2))
+    imgs = torch.from_numpy(imgs)
+    imgs = Variable(imgs)
+    print(imgs[0])
+    print(imgs[0].data.type())
+    # print(resnet(imgs.float()))  # Not enough ram to do this.. :'(
