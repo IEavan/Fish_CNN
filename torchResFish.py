@@ -98,18 +98,18 @@ def load_images(shape, dataset="train", one_hot_encoding=True):  # Shape should 
     return np.asarray(images_list), np.asarray(labels_list)
 
 # ReTrain ResNet
-for i in tqdm(range(iterations)):
-
-    # Load images and labels
-    imgs, labels = load_images((64, 224, 224, 3), dataset="train")
-    plt.imshow(imgs[0])
-    plt.pause(1)
-    imgs = np.transpose(imgs, (0,3,1,2))
-    imgs = torch.from_numpy(imgs)
-    imgs = Variable(imgs)
-    print(imgs[0])
-    print(imgs[0].data.type())
-    # print(resnet(imgs.float()))  # Not enough ram to do this.. :'(
+# for i in tqdm(range(iterations)):
+# 
+#     # Load images and labels
+#     imgs, labels = load_images((64, 224, 224, 3), dataset="train")
+#     plt.imshow(imgs[0])
+#     plt.pause(1)
+#     imgs = np.transpose(imgs, (0,3,1,2))
+#     imgs = torch.from_numpy(imgs)
+#     imgs = Variable(imgs)
+#     print(imgs[0])
+#     print(imgs[0].data.type())
+#     # print(resnet(imgs.float()))  # Not enough ram to do this.. :'(
 
 def train(model, iterations):
 
@@ -143,3 +143,37 @@ def train(model, iterations):
         # IO
         if i % 100 is 0:
             print("Current training loss is {}".format(loss.data[0]))
+
+def evaluate(model, rounds=10):
+
+    correct = 0
+    total = 0
+
+    for i in range(rounds):
+
+        # Loaf images
+        imgs, labels = load_images((64, 224, 224, 3), dataset="test")
+
+        # Move to cuda if possible
+        if use_cuda: 
+            imgs = Variable(torch.from_numpy(imgs).cuda())
+            labels = Variable(torch.from_numpy(labels).cuda())
+        else: 
+            imgs = Variable(torch.from_numpy(imgs).cuda())
+            labels = Variable(torch.from_numpy(labels))
+
+        # Forward Propagate
+        outputs = model(imgs)
+        _, predictions = outputs.data.max(1)
+        _, label_index = labels.data.max(1)
+
+        # Count Correct
+        correct += (labels_index == predictions).sum()
+        total += predictions.size()
+
+    # Compute Accuracy
+    acc = correct / total
+    return acc
+
+train(resnet, 1000)
+print("Final testset accuracy is {:.2%}".format(evaluate(resnet)))
