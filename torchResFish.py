@@ -113,7 +113,7 @@ def load_images(shape, dataset="train", one_hot_encoding=True):  # Shape should 
 
 def train(model, iterations):
 
-    params = [p for p in model.parameters() if p.requires_grad()]
+    params = [p for p in model.parameters() if p.requires_grad]
     
     for i in range(iterations):
 
@@ -123,11 +123,12 @@ def train(model, iterations):
 
         # Forward Propagate
         imgs, labels = load_images((64, 224, 224, 3), dataset="train")
+        imgs = imgs.transpose((0, 3, 1, 2))
         if use_cuda: 
             imgs = Variable(torch.from_numpy(imgs).cuda())
             labels = Variable(torch.from_numpy(labels).cuda())
         else: 
-            imgs = Variable(torch.from_numpy(imgs).cuda())
+            imgs = Variable(torch.from_numpy(imgs))
             labels = Variable(torch.from_numpy(labels))
         
         outputs = model(imgs.float())
@@ -151,15 +152,16 @@ def evaluate(model, rounds=10):
 
     for i in range(rounds):
 
-        # Loaf images
+        # Load images
         imgs, labels = load_images((64, 224, 224, 3), dataset="test")
+        imgs = imgs.transpose((0, 3, 1, 2))
 
         # Move to cuda if possible
         if use_cuda: 
             imgs = Variable(torch.from_numpy(imgs).cuda())
             labels = Variable(torch.from_numpy(labels).cuda())
         else: 
-            imgs = Variable(torch.from_numpy(imgs).cuda())
+            imgs = Variable(torch.from_numpy(imgs))
             labels = Variable(torch.from_numpy(labels))
 
         # Forward Propagate
