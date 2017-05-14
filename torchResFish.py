@@ -13,16 +13,12 @@ import scipy.misc
 import os
 import random
 
-import matplotlib.pyplot as plt
-plt.ion()
-
 # Constants
-iterations = 1  # Number of training loops
+iterations = 200  # Number of training loops
 use_cuda = torch.cuda.is_available()
 
 # Load pretrained ResNet18
 resnet = torchvision.models.resnet18(pretrained=True)
-if use_cuda: resnet.cuda()
 
 # Freeze all parameters in model
 for param in resnet.parameters():
@@ -30,6 +26,7 @@ for param in resnet.parameters():
 
 # Replace final fc layer with new fc layer
 resnet.fc = torch.nn.Linear(512,8)
+if use_cuda: resnet.cuda()
 
 # Load image names
 sets = ['train', 'test']
@@ -51,7 +48,7 @@ for i, x in enumerate(sets):
         image_names[i][key] = os.listdir(directory_path)
 
 # Image loader
-def load_images(shape, dataset="train", one_hot_encoding=True):  # Shape should be (batch, channels, height, width)
+def load_images(shape, dataset, one_hot_encoding=True):  # Shape should be (batch, channels, height, width)
     
     # Check that four dimensions have been given
     assert len(shape) is 4
@@ -117,9 +114,10 @@ def train(model, iterations):
     
     for i in range(iterations):
 
-        if i % 500 is 0:
-            learning_rate = 0.001 / 10 ** (i // 500)
+        if i % 100 is 0:
+            learning_rate = 0.0001 / 10 ** (i // 500)
             optimizer = torch.optim.SGD(params, lr=learning_rate, momentum=0.8)
+            print("Reducing learning rate by a factor of ten")
 
         # Forward Propagate
         imgs, labels = load_images((64, 224, 224, 3), dataset="train")
@@ -132,9 +130,14 @@ def train(model, iterations):
             labels = Variable(torch.from_numpy(labels))
         
         outputs = model(imgs.float())
-        
+        soft = torch.nn.Softmax()
+        outputs = soft(outputs)
+        outputs = outputs.add(1e-5)
+         
         # Compute Loss
-        loss = - (labels * outputs.log() + (1 - labels) * (1 - outputs).log()).sum()
+        correct_error = labels.double() * outputs.log().double()
+        incorrect_error = (1 - labels).double() * (1 - outputs).log().double()
+        loss = -1 * (correct_error + incorrect_error).sum()
         
         # Backpropagate
         loss.backward()
@@ -142,8 +145,10 @@ def train(model, iterations):
         optimizer.zero_grad()
 
         # IO
+        if i % 10 is 0:
+            print("Iteration {}: Current training loss is {}".format(i, loss.data[0]))
         if i % 100 is 0:
-            print("Current training loss is {}".format(loss.data[0]))
+            print("Current training accuracy is {:.2%}".format(evaluate(model, 5)))
 
 def evaluate(model, rounds=10):
 
@@ -165,17 +170,17 @@ def evaluate(model, rounds=10):
             labels = Variable(torch.from_numpy(labels))
 
         # Forward Propagate
-        outputs = model(imgs)
+        outputs = model(imgs.float())
         _, predictions = outputs.data.max(1)
         _, label_index = labels.data.max(1)
 
         # Count Correct
-        correct += (labels_index == predictions).sum()
-        total += predictions.size()
+        correct += (label_index == predictions).sum()
+        total += imgs.size()[0]
 
     # Compute Accuracy
     acc = correct / total
     return acc
 
-train(resnet, 1000)
+train(resnet, iterations)
 print("Final testset accuracy is {:.2%}".format(evaluate(resnet)))
